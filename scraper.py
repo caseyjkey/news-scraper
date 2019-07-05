@@ -1,9 +1,10 @@
-import requests        		# for downloading webpages
-from bs4 import BeautifulSoup   # for webpage (BS) data structure
-import re                       # for regular expressions
-import csv                      # for exporting the scraped articles
-import sys                      # for command-line url argument
-from tqdm import tqdm           # for progress bar
+import re                           # for regular expressions
+import csv                          # for exporting the scraped articles
+import sys                          # for command-line url argument
+from urllib.parse import urljoin    # for yahoo news' relative links
+import requests                     # for downloading webpages
+from bs4 import BeautifulSoup       # for webpage (BS) data structure
+from tqdm import tqdm               # for progress bar
 
 '''
 Determines the news source (WSJ, Yahoo! Finance)
@@ -22,9 +23,14 @@ def which_news_is(url):
     return "unknown news source"
 
 
+'''
+Determine the news page we will be scraping.
+'''
 argv = sys.argv
-url = "https://www.wsj.com/news/markets/stocks" \
-       if len(argv) == 1 else argv[1]
+url = input("Please enter a WSJ or Y! Finance news page: ") if len(argv) == 1 else argv[1]
+if not url:
+    url = "https://finance.yahoo.com/quote/BTC-USD?p=BTC-USD&.tsrc=fin-srch"
+
 source = which_news_is(url)
 
 '''
@@ -91,7 +97,11 @@ def save_wsj(links):
             # Extract article snippet
             article_snippet = article_soup.find_all('div', {'class': 'wsj-snippet-body'})
             for snippet in article_snippet:
-                article = snippet.text.replace("\n", " ")    
+                article = snippet.text.replace("\n", " ")
+
+            # date =
+            # author =
+
             # Write article to CSV file
             writer.writerow([title, article])
 
@@ -103,7 +113,7 @@ Saves Yahoo Finance articles as CSV file "yahoo-news.csv"
 '''
 def save_yahoo(links):
     print("Scraping now...")
-
+    base_url = "https://finance.yahoo.com"
     with open("yahoo-news.csv", "a") as f:
         # Write column titles for a fresh CSV file
         if f.tell() == 0:
@@ -114,8 +124,14 @@ def save_yahoo(links):
         # Write to file
         writer = csv.writer(f)
         for link in tqdm(links, disable=(len(links)<10)):
-            break
-
+            title = link.text
+            rel_link = link.attrs['href']
+            article_url = urljoin(base_url, rel_link)
+            article_soup = web_soup(article_url)
+            article = article_soup.select('article')
+            print(article.text)
+            for EachText in article.select('p'):
+                print(EachText.get_text())
     print("...scraping complete.")
 
 
