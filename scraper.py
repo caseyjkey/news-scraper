@@ -128,9 +128,8 @@ def save_yahoo(links):
             rel_link = link.attrs['href']
             article_url = urljoin(base_url, rel_link)
             article_soup = web_soup(article_url)
-            article = article_soup.select('article')
-            print(article.text)
-            for EachText in article.select('p'):
+            article = article_soup.select('article')[0]
+            for EachText in article.find_all('p'):
                 print(EachText.get_text())
     print("...scraping complete.")
 
