@@ -1,9 +1,12 @@
+import datetime                     # for filenames with date
 import re                           # for regular expressions
 import csv                          # for exporting the scraped articles
 import sys                          # for command-line url argument
+import time                         # for time.sleep()
 from urllib.parse import urljoin    # for yahoo news' relative links
 import requests                     # for downloading webpages
 from bs4 import BeautifulSoup       # for webpage (BS) data structure
+from selenium import webdriver      # for scroll() method
 from tqdm import tqdm               # for progress bar
 
 '''
@@ -36,13 +39,16 @@ source = which_news_is(url)
 '''
 This method downloads a webpage and returns a BS data structure.
 '''
-def web_soup(url):
+def web_soup(url, scroll=False):
     # Fetch data from url
     response = requests.get(url)
     assert response.status_code == 200
 
     # Parse website data into bs4 data structure
-    soup = BeautifulSoup(response.text,features="html.parser")
+    if scroll:
+        soup = scroller(url)
+    else:
+        soup = BeautifulSoup(response.text,features="html.parser")
     return soup
 
 
@@ -62,7 +68,7 @@ def link_soup(soup):
 Returns a set of links to articles given a webpage
 '''
 def get_links(url):	
-    html = web_soup(url)
+    html = web_soup(url, scroll=True)
     links = link_soup(html) 
     link_set = set(links)
     link_list = []
@@ -109,28 +115,79 @@ def save_wsj(links):
 
 
 '''
+Scrolls the true bottom of a website
+Returns the bs4 of website
+Credit: https://michaeljsanders.com/2017/05/12/scrapin-and-scrollin.html
+'''
+def scroller(url):
+
+    # I used Firefox; you can use whichever browser you like.
+    browser = webdriver.Firefox()
+
+    # Tell Selenium to get the URL you're interested in.
+    browser.get(url)
+
+    # Selenium script to scroll to the bottom, wait 3 seconds for the next batch of data to load, then continue scrolling.  It will continue to do this until the page stops loading new data.
+    lenOfPage = browser.execute_script("window.scrollTo(0, 100000000000);var lenOfPage=document.body.scrollHeight;return lenOfPage;")
+    match=False
+    while(match==False):
+            lastCount = lenOfPage
+            time.sleep(5)
+            lenOfPage = browser.execute_script("window.scrollTo(0, 100000000000);var lenOfPage=document.body.scrollHeight;return lenOfPage;")
+            if lastCount==lenOfPage:
+                match=True
+    # Now that the page is fully scrolled, grab the source code.
+    source_data = browser.page_source
+
+    # Throw your source into BeautifulSoup and start parsing!
+    bs_data = BeautifulSoup(source_data, features="html.parser")
+    
+    return bs_data
+'''
 Saves Yahoo Finance articles as CSV file "yahoo-news.csv"
 '''
 def save_yahoo(links):
-    print("Scraping now...")
-    base_url = "https://finance.yahoo.com"
-    with open("yahoo-news.csv", "a") as f:
+    print('Scraping now...')
+    base_url = 'https://finance.yahoo.com'
+    now = datetime.datetime.now()
+    date = now.strftime('%d-%a-%y')
+    filename = 'yahoo-news-' + date + '.csv'
+    with open(filename, 'a') as f:
         # Write column titles for a fresh CSV file
         if f.tell() == 0:
-            header = ['title', 'article']
+            header = ['title', 'article', 'author', 'provider', 'date']
             writer = csv.DictWriter(f, fieldnames=header)
             writer.writeheader()
 
-        # Write to file
+        # Get ready to write a csv file
         writer = csv.writer(f)
+        # For each link, extract contents
         for link in tqdm(links, disable=(len(links)<10)):
             title = link.text
             rel_link = link.attrs['href']
             article_url = urljoin(base_url, rel_link)
             article_soup = web_soup(article_url)
-            article = article_soup.select('article')[0]
-            for EachText in article.find_all('p'):
-                print(EachText.get_text())
+            article_paragraphs = article_soup.select('article')[0]
+            article = ""
+            for EachText in article_paragraphs.find_all('p'):
+                article += ' ' + EachText.get_text().replace('\n', ' ')
+            
+            # Find author, provider, and date
+            auth_prov = article_soup.find_all('div', {'class': 'auth-prov-soc'})
+            auth_prov = auth_prov.pop()
+            print(auth_prov)
+            if auth_prov.find(itemprop="name"):#auth_prov.find('a').get("itemprop"):
+                author = auth_prov.find(itemprop="name").text
+            provider =  auth_prov.find('span', {'class': 'provider-link'}) 
+            provider = "None" if not provider else provider.text
+            date = auth_prov.time['datetime'] 
+
+            print(title)
+            print('Author:', author)
+            print('Provider:', provider)
+            print('Published:', date)
+            
+            writer.writerow([title, article, author, provider, date])
     print("...scraping complete.")
 
 
