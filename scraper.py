@@ -42,8 +42,12 @@ This method downloads a webpage and returns a BS data structure.
 def web_soup(url, scroll=False):
     # Fetch data from url
     response = requests.get(url)
-    assert response.status_code == 200
-
+    try:
+        assert response.status_code == 200
+    except AssertionError as e:
+        time.wait(3)
+        response = requests.get(url)
+        assert response.status_code == 200
     # Parse website data into bs4 data structure
     if scroll:
         soup = scroller(url)
@@ -128,14 +132,13 @@ def scroller(url):
     browser.get(url)
 
     # Selenium script to scroll to the bottom, wait 3 seconds for the next batch of data to load, then continue scrolling.  It will continue to do this until the page stops loading new data.
-    lenOfPage = browser.execute_script("window.scrollTo(0, 100000000000);var lenOfPage=document.body.scrollHeight;return lenOfPage;")
-    match=False
-    while(match==False):
-            lastCount = lenOfPage
-            time.sleep(5)
-            lenOfPage = browser.execute_script("window.scrollTo(0, 100000000000);var lenOfPage=document.body.scrollHeight;return lenOfPage;")
-            if lastCount==lenOfPage:
-                match=True
+    for i in range(18):
+        start_height = browser.execute_script('var height=document.documentElement.scrollHeight; return height')
+        browser.execute_script('window.scrollTo(0, document.documentElement.scrollHeight);')
+        after_height = browser.execute_script('return document.documentElement.scrollHeight')
+        print(i)
+        time.sleep(1)
+            
     # Now that the page is fully scrolled, grab the source code.
     source_data = browser.page_source
 
