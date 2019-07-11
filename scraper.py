@@ -1,3 +1,9 @@
+'''
+This is a tool for scraping news websites for their articles.
+Supports: Wallstreet Journal Preview, and Yahoo! Finance
+Created by: Casey Key, SE Intern
+Created: July 19th, 2019
+'''
 import datetime                     # for filenames with date
 import re                           # for regular expressions
 import csv                          # for exporting the scraped articles
@@ -166,7 +172,6 @@ def save_yahoo(links):
         writer = csv.writer(f)
         # For each link, extract contents
         for link in tqdm(links, disable=(len(links)<10)):
-            title = link.text
             rel_link = link.attrs['href']
             article_url = urljoin(base_url, rel_link)
             article_soup = web_soup(article_url)
@@ -175,17 +180,17 @@ def save_yahoo(links):
             for EachText in article_paragraphs.find_all('p'):
                 article += ' ' + EachText.get_text().replace('\n', ' ')
             
-            # Find author, provider, and date
+            # Find title, author, provider, and date
+            title = article_soup.find('h1').text
             auth_prov = article_soup.find_all('div', {'class': 'auth-prov-soc'})
             auth_prov = auth_prov.pop()
-            print(auth_prov)
             if auth_prov.find(itemprop="name"):#auth_prov.find('a').get("itemprop"):
                 author = auth_prov.find(itemprop="name").text
             provider =  auth_prov.find('span', {'class': 'provider-link'}) 
             provider = "None" if not provider else provider.text
             date = auth_prov.time['datetime'] 
 
-            print(title)
+            print('Title:', title)
             print('Author:', author)
             print('Provider:', provider)
             print('Published:', date)
